@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { ChevronLeft, PawPrint, MapPin, Star, Eye, EyeOff, ChevronRight, MessageCircle, Info, X } from 'lucide-react'
+import { ChevronLeft, PawPrint, Star, Eye, EyeOff, MessageCircle, Info, X, ChevronDown } from 'lucide-react'
 
 function calcCompat(a, b) {
   if (!a || !b) return 50
@@ -33,7 +33,6 @@ function DogProfileModal({ dog, compat, onClose, onChat }) {
           <h3 className="font-black text-2xl text-gray-900">{dog.name}</h3>
           <p className="text-gray-600">{dog.breed} • {dog.age ? dog.age + ' anni' : ''} • {dog.gender === 'M' ? '♂' : '♀'}</p>
         </div>
-        {/* Compatibilità */}
         <div className="bg-gray-50 rounded-2xl p-4 mb-4 text-center">
           <div className="text-4xl font-black mb-1" style={{ color: compatColor }}>{compat}%</div>
           <p className="text-sm text-gray-600 font-medium">Compatibilità con il tuo cane</p>
@@ -41,7 +40,6 @@ function DogProfileModal({ dog, compat, onClose, onChat }) {
             <div className="h-2 rounded-full" style={{ width: `${compat}%`, background: compatColor }} />
           </div>
         </div>
-        {/* Caratteristiche */}
         <div className="mb-4">
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[
@@ -63,7 +61,6 @@ function DogProfileModal({ dog, compat, onClose, onChat }) {
             </div>
           )}
         </div>
-        {/* Pulsante chat */}
         <button onClick={() => onChat(dog.owner_id)}
           className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2"
           style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}>
@@ -74,16 +71,48 @@ function DogProfileModal({ dog, compat, onClose, onChat }) {
   )
 }
 
+// Modal selezione cane per check-in
+function SelectDogModal({ dogs, onSelect, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div className="bg-white w-full max-w-sm rounded-t-3xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-black text-lg text-gray-900">Con quale cane sei qui?</h2>
+          <button onClick={onClose} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-600" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          {dogs.map((dog, i) => (
+            <button key={dog.id} onClick={() => onSelect(dog)}
+              className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-2xl hover:bg-orange-50 active:scale-95 text-left">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl">
+                {EMOJIS[i % EMOJIS.length]}
+              </div>
+              <div>
+                <p className="font-bold text-gray-900">{dog.name}</p>
+                <p className="text-xs text-gray-500">{dog.breed} • {dog.age ? dog.age + ' anni' : ''}</p>
+              </div>
+              <ChevronDown className="w-5 h-5 text-gray-400 ml-auto rotate-[-90deg]" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AreaPage({ area, onBack, onChat }) {
   const { user, dogs } = useAuth()
-  const myDog = dogs[0] || null
+  const [activeDog, setActiveDog] = useState(dogs[0] || null)
   const [present, setPresent] = useState([])
   const [checkinId, setCheckinId] = useState(null)
   const [invisible, setInvisible] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [selectedDog, setSelectedDog] = useState(null)
-  const [geoPrompt, setGeoPrompt] = useState(null) // area suggerita per check-in automatico
+  const [showDogSelect, setShowDogSelect] = useState(false)
+  const [geoPrompt, setGeoPrompt] = useState(null)
   const watchIdRef = useRef(null)
 
   useEffect(() => {
@@ -99,22 +128,21 @@ export default function AreaPage({ area, onBack, onChat }) {
     }
   }, [area.id])
 
+  // Aggiorna activeDog se cambia la lista cani
+  useEffect(() => {
+    if (dogs.length > 0 && !activeDog) setActiveDog(dogs[0])
+  }, [dogs])
+
   const startGeoWatch = () => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation || !area.lat || !area.lng) return
     watchIdRef.current = navigator.geolocation.watchPosition(pos => {
       const { latitude: lat, longitude: lng } = pos.coords
-      // Calcola distanza dall'area (formula Haversine semplificata)
-      if (area.lat && area.lng) {
-        const dist = Math.sqrt(Math.pow((lat - area.lat) * 111000, 2) + Math.pow((lng - area.lng) * 111000 * Math.cos(area.lat * Math.PI / 180), 2))
-        // Se entro 200m e non ancora in check-in, suggerisci
-        if (dist < 200 && !checkinId) {
-          setGeoPrompt('Sei vicino a ' + area.name + '! Vuoi fare check-in?')
-        }
-        // Se oltre 500m e in check-in, avvisa
-        if (dist > 500 && checkinId) {
-          setGeoPrompt('Sei lontano da ' + area.name + '. Vuoi fare check-out?')
-        }
-      }
+      const dist = Math.sqrt(
+        Math.pow((lat - area.lat) * 111000, 2) +
+        Math.pow((lng - area.lng) * 111000 * Math.cos(area.lat * Math.PI / 180), 2)
+      )
+      if (dist < 200 && !checkinId) setGeoPrompt('check-in')
+      if (dist > 500 && checkinId) setGeoPrompt('checkout')
     }, null, { enableHighAccuracy: true, maximumAge: 30000 })
   }
 
@@ -127,24 +155,47 @@ export default function AreaPage({ area, onBack, onChat }) {
   }
 
   const checkMyCheckin = async () => {
-    if (!myDog) return
-    const { data } = await supabase.from('checkins').select('id')
-      .eq('dog_id', myDog.id).eq('area_id', area.id).eq('active', true).single()
-    if (data) setCheckinId(data.id)
+    if (dogs.length === 0) return
+    const dogIds = dogs.map(d => d.id)
+    const { data } = await supabase.from('checkins').select('id, dog_id')
+      .in('dog_id', dogIds).eq('area_id', area.id).eq('active', true)
+    if (data && data.length > 0) {
+      setCheckinId(data[0].id)
+      const checkedDog = dogs.find(d => d.id === data[0].dog_id)
+      if (checkedDog) setActiveDog(checkedDog)
+    }
   }
 
-  const handleCheckin = async () => {
-    if (!myDog) return
+  const handleCheckinPress = () => {
+    if (checkinId) {
+      handleCheckin(activeDog)
+    } else if (dogs.length > 1) {
+      setShowDogSelect(true)
+    } else {
+      handleCheckin(dogs[0])
+    }
+  }
+
+  const handleCheckin = async (dog) => {
+    if (!dog) return
     setBusy(true)
     setGeoPrompt(null)
+    setShowDogSelect(false)
+    setActiveDog(dog)
+
     if (checkinId) {
-      await supabase.from('checkins').update({ active: false, checked_out_at: new Date().toISOString() }).eq('id', checkinId)
+      await supabase.from('checkins')
+        .update({ active: false, checked_out_at: new Date().toISOString() })
+        .eq('id', checkinId)
       setCheckinId(null)
     } else {
-      // Checkout da tutte le altre aree prima
-      await supabase.from('checkins').update({ active: false, checked_out_at: new Date().toISOString() })
-        .eq('dog_id', myDog.id).eq('active', true)
-      const { data } = await supabase.from('checkins').insert({ dog_id: myDog.id, area_id: area.id, active: true }).select().single()
+      // Checkout da tutte le altre aree
+      await supabase.from('checkins')
+        .update({ active: false, checked_out_at: new Date().toISOString() })
+        .eq('dog_id', dog.id).eq('active', true)
+      const { data } = await supabase.from('checkins')
+        .insert({ dog_id: dog.id, area_id: area.id, active: true })
+        .select().single()
       if (data) setCheckinId(data.id)
     }
     await fetchPresent()
@@ -156,22 +207,26 @@ export default function AreaPage({ area, onBack, onChat }) {
     return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`
   }
 
-  const visible = invisible ? present.filter(c => c.dogs?.owner_id !== user?.id) : present
+  const visible = invisible ? present.filter(c => !dogs.map(d => d.owner_id).includes(c.dogs?.owner_id)) : present
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Popup geo */}
+      {/* Banner geo */}
       {geoPrompt && (
-        <div className="bg-blue-500 text-white px-4 py-3 flex items-center gap-3">
-          <MapPin className="w-5 h-5 flex-shrink-0" />
-          <p className="text-sm font-medium flex-1">{geoPrompt}</p>
-          <button onClick={handleCheckin} className="bg-white text-blue-600 text-xs font-bold px-3 py-1.5 rounded-full">
-            {checkinId ? 'Check-out' : 'Check-in'}
+        <div className="bg-blue-500 text-white px-4 py-2.5 flex items-center gap-3 flex-shrink-0">
+          <PawPrint className="w-4 h-4 flex-shrink-0" fill="white" />
+          <p className="text-xs font-medium flex-1">
+            {geoPrompt === 'check-in' ? `Sei vicino a ${area.name}! Vuoi fare check-in?` : `Ti sei allontanato da ${area.name}. Check-out?`}
+          </p>
+          <button onClick={handleCheckinPress}
+            className="bg-white text-blue-600 text-xs font-bold px-3 py-1 rounded-full flex-shrink-0">
+            {geoPrompt === 'check-in' ? 'Check-in' : 'Check-out'}
           </button>
           <button onClick={() => setGeoPrompt(null)}><X className="w-4 h-4" /></button>
         </div>
       )}
 
+      {/* Header */}
       <div className="bg-white px-4 pt-3 pb-3 flex items-center justify-between border-b border-gray-100">
         <button onClick={onBack}><ChevronLeft className="w-6 h-6 text-gray-700" /></button>
         <div className="text-center flex-1 mx-2">
@@ -213,12 +268,13 @@ export default function AreaPage({ area, onBack, onChat }) {
         )}
         {visible.map((c, i) => {
           const dog = c.dogs; if (!dog) return null
-          const isMe = dog.owner_id === user?.id
-          const compat = calcCompat(myDog, dog)
+          const isMe = dogs.some(d => d.owner_id === user?.id && dog.owner_id === user?.id)
+          const myFirstDog = dogs[0]
+          const compat = calcCompat(myFirstDog, dog)
           const compatColor = compat >= 75 ? '#10B981' : compat >= 60 ? '#F97316' : '#EF4444'
           return (
             <div key={c.id} className={`bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm ${isMe ? 'border-2 border-orange-200' : ''}`}>
-              <button onClick={() => !isMe && setSelectedDog({ dog, compat })} className="relative">
+              <button onClick={() => !isMe && setSelectedDog({ dog, compat })} className="relative flex-shrink-0">
                 <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-2xl">
                   {EMOJIS[i % EMOJIS.length]}
                 </div>
@@ -239,7 +295,7 @@ export default function AreaPage({ area, onBack, onChat }) {
                 <p className="text-[10px] text-gray-400 mt-0.5">Qui da {elapsed(c.checked_in_at)}</p>
               </div>
               {!isMe && (
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                   <div className="text-xl font-black" style={{ color: compatColor }}>{compat}%</div>
                   <div className="flex gap-1">
                     <button onClick={() => setSelectedDog({ dog, compat })}
@@ -258,16 +314,33 @@ export default function AreaPage({ area, onBack, onChat }) {
         })}
       </div>
 
-      <div className="bg-white px-4 py-3 border-t border-gray-100">
-        {!myDog ? (
+      {/* Bottone check-in */}
+      <div className="bg-white px-4 py-3 border-t border-gray-100 flex-shrink-0">
+        {dogs.length === 0 ? (
           <p className="text-center text-sm text-gray-600 py-1">⚠️ Aggiungi un cane dal profilo per fare check-in</p>
         ) : (
-          <button onClick={handleCheckin} disabled={busy}
-            className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 disabled:opacity-60"
-            style={{ background: checkinId ? 'linear-gradient(135deg, #6B7280, #4B5563)' : 'linear-gradient(135deg, #84CC16, #65A30D)' }}>
-            <PawPrint className="w-5 h-5" fill="white" />
-            {busy ? 'Attendere...' : checkinId ? `${myDog.name} è qui ✓ — Esci` : `SONO QUI con ${myDog.name}`}
-          </button>
+          <div>
+            {/* Mostra cane selezionato se più di uno */}
+            {dogs.length > 1 && !checkinId && (
+              <button onClick={() => setShowDogSelect(true)}
+                className="w-full mb-2 flex items-center justify-between px-4 py-2 bg-orange-50 rounded-xl border border-orange-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🐕</span>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-gray-900">{activeDog?.name}</p>
+                    <p className="text-[10px] text-gray-500">Tocca per cambiare cane</p>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+            <button onClick={handleCheckinPress} disabled={busy}
+              className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 disabled:opacity-60"
+              style={{ background: checkinId ? 'linear-gradient(135deg, #6B7280, #4B5563)' : 'linear-gradient(135deg, #84CC16, #65A30D)' }}>
+              <PawPrint className="w-5 h-5" fill="white" />
+              {busy ? 'Attendere...' : checkinId ? `${activeDog?.name} è qui ✓ — Esci` : `SONO QUI con ${activeDog?.name}`}
+            </button>
+          </div>
         )}
       </div>
 
@@ -278,6 +351,15 @@ export default function AreaPage({ area, onBack, onChat }) {
           compat={selectedDog.compat}
           onClose={() => setSelectedDog(null)}
           onChat={(ownerId) => { setSelectedDog(null); onChat && onChat(ownerId) }}
+        />
+      )}
+
+      {/* Modal selezione cane */}
+      {showDogSelect && (
+        <SelectDogModal
+          dogs={dogs}
+          onSelect={(dog) => handleCheckin(dog)}
+          onClose={() => setShowDogSelect(false)}
         />
       )}
     </div>
