@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { Bell, Search, SlidersHorizontal, MapPin, PawPrint, ChevronRight, Calendar, X, Filter } from 'lucide-react'
+import { Bell, Search, SlidersHorizontal, MapPin, PawPrint, ChevronRight, Calendar, X } from 'lucide-react'
 
 export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
   const { dogs } = useAuth()
@@ -22,7 +22,7 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
 
   const fetchData = async () => {
     const [{ data: areasData }, { data: checkins }, { data: eventsData }] = await Promise.all([
-      supabase.from('dog_areas').select('*'),
+      supabase.from('dog_areas').select('*').order('name'),
       supabase.from('checkins').select('area_id').eq('active', true),
       supabase.from('events').select('*').gte('date', new Date().toISOString()).order('date').limit(3)
     ])
@@ -39,9 +39,12 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
   const filteredAreas = areas.filter(a => {
     if (filterFenced && !a.fenced) return false
     if (filterMinDogs > 0 && (areaStats[a.id] || 0) < filterMinDogs) return false
-    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.city?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) &&
+        !a.city?.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+
+  const COLORS = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6']
 
   return (
     <div className="flex flex-col h-full bg-gray-50 overflow-y-auto">
@@ -61,9 +64,9 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
         </button>
       </div>
 
-      {/* Pannello filtri */}
+      {/* Filtri */}
       {showFilter && (
-        <div className="bg-white px-4 py-3 border-b border-orange-100 shadow-sm">
+        <div className="bg-white px-4 py-3 border-b border-orange-100">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-sm text-gray-900">Filtra aree</h3>
             <button onClick={() => { setFilterFenced(false); setFilterMinDogs(0); setSearch('') }}
@@ -93,7 +96,7 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
         </div>
       )}
 
-      {/* Search bar (quando filtri chiusi) */}
+      {/* Barra ricerca quando filtri chiusi */}
       {!showFilter && (
         <div className="bg-white px-4 pb-3">
           <div className="flex items-center bg-gray-100 rounded-full px-4 py-2.5">
@@ -101,6 +104,7 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Cerca area, città..."
               className="flex-1 bg-transparent text-sm outline-none text-gray-700" />
+            {search && <button onClick={() => setSearch('')}><X className="w-4 h-4 text-gray-400" /></button>}
           </div>
         </div>
       )}
@@ -120,7 +124,7 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
         ))}
       </div>
 
-      {/* Aree vicine */}
+      {/* Aree */}
       <div className="px-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-bold text-gray-900">Aree cani vicine</h3>
@@ -131,31 +135,31 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
         <div className="space-y-2">
           {filteredAreas.map((area, i) => {
             const count = areaStats[area.id] || 0
-            const colors = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6']
+            const color = COLORS[i % COLORS.length]
             return (
               <button key={area.id} onClick={() => onAreaSelect(area)}
                 className="w-full bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow text-left active:scale-95">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                  style={{ background: colors[i % colors.length] + '20' }}>🌳</div>
+                  style={{ background: color + '20' }}>🌳</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-sm text-gray-900 truncate">{area.name}</h4>
                     {area.fenced && <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full flex-shrink-0">REC.</span>}
                   </div>
                   <p className="text-xs text-gray-500 flex items-center gap-2">
-                    <span><PawPrint className="w-3 h-3 inline" style={{ color: colors[i % colors.length] }} /> {count} cani</span>
+                    <span><PawPrint className="w-3 h-3 inline" style={{ color }} /> {count} cani</span>
                     <span><MapPin className="w-3 h-3 inline" /> {area.city}</span>
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg flex-shrink-0"
-                  style={{ backgroundColor: colors[i % colors.length] + '20', color: colors[i % colors.length] }}>
+                  style={{ backgroundColor: color + '20', color }}>
                   {count}
                 </div>
               </button>
             )
           })}
           {filteredAreas.length === 0 && (
-            <div className="text-center py-6 text-gray-500 text-sm">
+            <div className="text-center py-6 text-gray-500 text-sm bg-white rounded-2xl">
               Nessuna area trovata con questi filtri
             </div>
           )}
@@ -182,9 +186,6 @@ export default function HomePage({ onAreaSelect, onTabChange, onEventSelect }) {
                   <p className="text-xs text-gray-500 flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     {new Date(ev.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> {ev.location}
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
