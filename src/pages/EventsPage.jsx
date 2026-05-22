@@ -15,17 +15,14 @@ function EventDetail({ event, onBack }) {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
 
-  // Usa sempre il conteggio reale da event_participants
   const realCount = participants.length
 
-  useEffect(() => {
-    fetchParticipants()
-  }, [event.id])
+  useEffect(() => { fetchParticipants() }, [event.id])
 
   useEffect(() => {
     if (tab !== 'chat') return
     fetchMessages()
-    const ch = supabase.channel(`ev-${event.id}`)
+    const ch = supabase.channel(`ev-${event.id}-${Date.now()}`)
       .on('postgres_changes', {
         event:'INSERT', schema:'public', table:'event_messages',
         filter:`event_id=eq.${event.id}`
@@ -33,27 +30,21 @@ function EventDetail({ event, onBack }) {
         const { data } = await supabase
           .from('event_messages')
           .select('id, content, user_id, created_at, profiles(username)')
-          .eq('id', payload.new.id)
-          .single()
+          .eq('id', payload.new.id).single()
         if (data) setMessages(prev => [...prev, data])
-      })
-      .subscribe()
+      }).subscribe()
     return () => supabase.removeChannel(ch)
   }, [event.id, tab])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:'smooth' })
-  }, [messages])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages])
 
   const fetchParticipants = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('event_participants')
       .select('user_id, profiles(username, city)')
       .eq('event_id', event.id)
-    if (!error) {
-      setParticipants(data || [])
-      setIsJoined(!!(data||[]).find(p => p.user_id === user?.id))
-    }
+    setParticipants(data || [])
+    setIsJoined(!!(data||[]).find(p => p.user_id === user?.id))
   }
 
   const fetchMessages = async () => {
@@ -68,15 +59,10 @@ function EventDetail({ event, onBack }) {
   const handleJoin = async () => {
     if (!user) return
     if (isJoined) {
-      await supabase.from('event_participants')
-        .delete().eq('event_id', event.id).eq('user_id', user.id)
+      await supabase.from('event_participants').delete().eq('event_id', event.id).eq('user_id', user.id)
     } else {
-      await supabase.from('event_participants')
-        .insert({ event_id: event.id, user_id: user.id })
+      await supabase.from('event_participants').insert({ event_id: event.id, user_id: user.id })
     }
-    // Aggiorna anche il campo participants_count nel DB
-    const newCount = isJoined ? Math.max(0, realCount - 1) : realCount + 1
-    await supabase.from('events').update({ participants_count: newCount }).eq('id', event.id)
     await fetchParticipants()
   }
 
@@ -85,9 +71,13 @@ function EventDetail({ event, onBack }) {
     setSending(true)
     const content = text.trim()
     setText('')
-    await supabase.from('event_messages').insert({
+    const { error } = await supabase.from('event_messages').insert({
       event_id: event.id, user_id: user.id, content
     })
+    if (error) {
+      console.error('Chat error:', error)
+      setText(content)
+    }
     setSending(false)
   }
 
@@ -124,7 +114,7 @@ function EventDetail({ event, onBack }) {
         </div>
         {!isPast && (
           <button onClick={handleJoin}
-            className="w-full mt-3 text-white font-bold py-3 rounded-xl active:scale-95"
+            className="w-full mt-3 text-white font-bold py-3 rounded-xl active:scale-95 transition-all"
             style={{ background: isJoined ? 'linear-gradient(135deg,#6B7280,#4B5563)' : isFull ? '#9CA3AF' : 'linear-gradient(135deg,#84CC16,#65A30D)' }}
             disabled={isFull && !isJoined}>
             {isJoined ? '✓ Partecipi — Disdici' : isFull ? 'Evento pieno' : '✓ PARTECIPA'}
@@ -158,7 +148,7 @@ function EventDetail({ event, onBack }) {
               <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-orange-500" />{new Date(event.date).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
               <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" />Ore {new Date(event.date).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</div>
               <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" />{event.location}</div>
-              <div className="flex items-center gap-2"><Users className="w-4 h-4 text-orange-500" />{realCount} partecipanti su {event.max_participants} posti</div>
+              <div className="flex items-center gap-2"><Users className="w-4 h-4 text-orange-500" />{realCount} su {event.max_participants} posti</div>
             </div>
           </div>
         )}
@@ -194,7 +184,7 @@ function EventDetail({ event, onBack }) {
                 <div className="text-center py-8 text-gray-500">
                   <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p className="text-sm">Nessun messaggio ancora</p>
-                  <p className="text-xs mt-1">Inizia la chat del gruppo!</p>
+                  <p className="text-xs mt-1">Inizia la chat!</p>
                 </div>
               )}
               {messages.map((m,i) => {
@@ -218,12 +208,12 @@ function EventDetail({ event, onBack }) {
               <div className="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-2.5">
                 <input type="text" value={text}
                   onChange={e => setText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() }}}
-                  placeholder="Scrivi nella chat del gruppo..."
+                  onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() }}}
+                  placeholder="Scrivi nella chat..."
                   className="flex-1 bg-transparent text-sm outline-none" />
               </div>
               <button onClick={sendMsg} disabled={!text.trim() || sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40"
+                className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40 flex-shrink-0"
                 style={{ background:'linear-gradient(135deg,#F97316,#EA580C)' }}>
                 <Send className="w-4 h-4 text-white" />
               </button>
@@ -242,24 +232,22 @@ export default function EventsPage({ initialEvent = null }) {
   const [showCreate, setShowCreate] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(initialEvent)
   const [filter, setFilter] = useState('prossimi')
-  const [participantCounts, setParticipantCounts] = useState({})
+  const [realCounts, setRealCounts] = useState({})
   const [form, setForm] = useState({ title:'', date:'', time:'', location:'', description:'', max_participants:20, emoji:'🐾' })
 
-  useEffect(() => { fetchEvents() }, [])
+  useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (initialEvent) setSelectedEvent(initialEvent) }, [initialEvent])
 
-  const fetchEvents = async () => {
-    const { data } = await supabase.from('events').select('*').order('date')
-    setEvents(data || [])
-    // Carica conteggi reali per tutti gli eventi
-    if (data && data.length > 0) {
+  const fetchAll = async () => {
+    const { data: evData } = await supabase.from('events').select('*').order('date')
+    setEvents(evData || [])
+    if (evData && evData.length > 0) {
       const { data: parts } = await supabase
-        .from('event_participants')
-        .select('event_id')
-        .in('event_id', data.map(e => e.id))
+        .from('event_participants').select('event_id')
+        .in('event_id', evData.map(e => e.id))
       const counts = {}
-      ;(parts||[]).forEach(p => { counts[p.event_id] = (counts[p.event_id]||0) + 1 })
-      setParticipantCounts(counts)
+      ;(parts||[]).forEach(p => { counts[p.event_id] = (counts[p.event_id]||0)+1 })
+      setRealCounts(counts)
     }
     setLoading(false)
   }
@@ -267,29 +255,25 @@ export default function EventsPage({ initialEvent = null }) {
   const handleCreate = async (e) => {
     e.preventDefault()
     const dt = new Date(`${form.date}T${form.time}`)
-    const { error } = await supabase.from('events').insert({
+    await supabase.from('events').insert({
       title: form.title, date: dt.toISOString(), location: form.location,
       description: form.description, max_participants: parseInt(form.max_participants),
       emoji: form.emoji, participants_count: 0, created_by: user.id
     })
-    if (!error) {
-      setShowCreate(false)
-      fetchEvents()
-      setForm({ title:'', date:'', time:'', location:'', description:'', max_participants:20, emoji:'🐾' })
-    }
+    setShowCreate(false)
+    fetchAll()
+    setForm({ title:'', date:'', time:'', location:'', description:'', max_participants:20, emoji:'🐾' })
   }
 
   const now = new Date()
   const filtered = events.filter(ev => {
     const d = new Date(ev.date)
-    if (filter === 'prossimi') return d >= now
-    if (filter === 'passati') return d < now
+    if (filter==='prossimi') return d >= now
+    if (filter==='passati') return d < now
     return true
   })
 
-  if (selectedEvent) return (
-    <EventDetail event={selectedEvent} onBack={() => { setSelectedEvent(null); fetchEvents() }} />
-  )
+  if (selectedEvent) return <EventDetail event={selectedEvent} onBack={() => { setSelectedEvent(null); fetchAll() }} />
 
   if (showCreate) return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -303,49 +287,42 @@ export default function EventsPage({ initialEvent = null }) {
             <label className="text-xs font-bold text-gray-700 block mb-1.5">Emoji</label>
             <div className="flex gap-2 flex-wrap">
               {['🐾','🌅','🐶','🎉','🏆','🎓','🍹','🌳','🤝','❤️'].map(em => (
-                <button key={em} type="button" onClick={() => setForm(f => ({...f, emoji:em}))}
-                  className={`w-10 h-10 rounded-xl text-xl ${form.emoji===em ? 'bg-orange-100 ring-2 ring-orange-500' : 'bg-white border border-gray-200'}`}>{em}</button>
+                <button key={em} type="button" onClick={() => setForm(f=>({...f,emoji:em}))}
+                  className={`w-10 h-10 rounded-xl text-xl ${form.emoji===em ? 'bg-orange-100 ring-2 ring-orange-500':'bg-white border border-gray-200'}`}>{em}</button>
               ))}
             </div>
           </div>
-          {[
-            { key:'title', label:'Titolo *', placeholder:'es. Passeggiata mattutina' },
-            { key:'location', label:'Luogo *', placeholder:'es. Parco Sempione' },
-          ].map(f => (
+          {[{key:'title',label:'Titolo *',ph:'es. Passeggiata'},{key:'location',label:'Luogo *',ph:'es. Parco Sempione'}].map(f=>(
             <div key={f.key}>
               <label className="text-xs font-bold text-gray-700 block mb-1.5">{f.label}</label>
-              <input type="text" value={form[f.key]} onChange={e => setForm(ff => ({...ff, [f.key]:e.target.value}))}
-                placeholder={f.placeholder} required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
+              <input type="text" value={form[f.key]} onChange={e=>setForm(ff=>({...ff,[f.key]:e.target.value}))}
+                placeholder={f.ph} required className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
             </div>
           ))}
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1.5">Descrizione</label>
-            <textarea value={form.description} onChange={e => setForm(f => ({...f, description:e.target.value}))}
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
               rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-gray-700 block mb-1.5">Data *</label>
-              <input type="date" value={form.date} onChange={e => setForm(f => ({...f, date:e.target.value}))} required
+              <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-700 block mb-1.5">Ora *</label>
-              <input type="time" value={form.time} onChange={e => setForm(f => ({...f, time:e.target.value}))} required
+              <input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
             </div>
           </div>
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1.5">Max partecipanti</label>
-            <input type="number" value={form.max_participants} onChange={e => setForm(f => ({...f, max_participants:e.target.value}))}
-              min={2} max={500}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
+            <input type="number" value={form.max_participants} onChange={e=>setForm(f=>({...f,max_participants:e.target.value}))}
+              min={2} max={500} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
           </div>
           <button type="submit" className="w-full text-white font-bold py-4 rounded-xl"
-            style={{ background:'linear-gradient(135deg,#F97316,#EA580C)' }}>
-            🎉 Pubblica evento
-          </button>
+            style={{background:'linear-gradient(135deg,#F97316,#EA580C)'}}>🎉 Pubblica</button>
         </form>
       </div>
     </div>
@@ -358,36 +335,34 @@ export default function EventsPage({ initialEvent = null }) {
           <h2 className="font-bold text-gray-900 text-base">Eventi & Raduni</h2>
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-1 text-xs font-bold text-white px-3 py-1.5 rounded-full"
-            style={{ background:'linear-gradient(135deg,#F97316,#EA580C)' }}>
+            style={{background:'linear-gradient(135deg,#F97316,#EA580C)'}}>
             <Plus className="w-3 h-3" /> Crea
           </button>
         </div>
         <div className="flex gap-2">
-          {['tutti','prossimi','passati'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize ${filter===f ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{f}</button>
+          {['tutti','prossimi','passati'].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize ${filter===f?'bg-orange-500 text-white':'bg-gray-100 text-gray-600'}`}>{f}</button>
           ))}
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {loading && <div className="text-center py-8 text-gray-500">Caricamento...</div>}
-        {!loading && filtered.length === 0 && (
+        {!loading && filtered.length===0 && (
           <div className="text-center py-12">
             <div className="text-5xl mb-3">📅</div>
             <p className="font-semibold text-gray-700">Nessun evento trovato</p>
-            <button onClick={() => setShowCreate(true)} className="mt-3 text-sm text-orange-600 font-bold">Crea il primo!</button>
+            <button onClick={()=>setShowCreate(true)} className="mt-3 text-sm text-orange-600 font-bold">Crea il primo!</button>
           </div>
         )}
-        {filtered.map((ev, i) => {
+        {filtered.map((ev,i)=>{
           const isPast = new Date(ev.date) < now
-          // Usa conteggio reale, non quello nel DB
-          const count = participantCounts[ev.id] ?? (ev.participants_count || 0)
+          const count = realCounts[ev.id] ?? 0
           return (
-            <button key={ev.id} onClick={() => setSelectedEvent(ev)}
-              className={`w-full bg-white rounded-2xl overflow-hidden shadow-sm text-left hover:shadow-md transition-shadow active:scale-95 ${isPast ? 'opacity-70' : ''}`}>
-              <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: EVENT_COLORS[i%EVENT_COLORS.length] }}>
-                <div className="text-3xl">{ev.emoji || '🐾'}</div>
+            <button key={ev.id} onClick={()=>setSelectedEvent(ev)}
+              className={`w-full bg-white rounded-2xl overflow-hidden shadow-sm text-left hover:shadow-md active:scale-95 ${isPast?'opacity-70':''}`}>
+              <div className="px-4 py-3 flex items-center gap-3" style={{backgroundColor:EVENT_COLORS[i%EVENT_COLORS.length]}}>
+                <div className="text-3xl">{ev.emoji||'🐾'}</div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-sm text-gray-900 truncate">{ev.title}</h3>
                   <p className="text-[10px] text-gray-700 flex items-center gap-1">
@@ -397,20 +372,13 @@ export default function EventsPage({ initialEvent = null }) {
                 </div>
               </div>
               <div className="px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-                  <MapPin className="w-3 h-3" />{ev.location}
-                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-600 mb-2"><MapPin className="w-3 h-3"/>{ev.location}</div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-                    <Users className="w-3 h-3" />{count}/{ev.max_participants}
-                  </span>
-                  <span className="text-xs text-orange-600 font-bold flex items-center gap-1">
-                    Dettagli e chat <MessageCircle className="w-3 h-3" />
-                  </span>
+                  <span className="text-xs font-semibold text-gray-700 flex items-center gap-1"><Users className="w-3 h-3"/>{count}/{ev.max_participants}</span>
+                  <span className="text-xs text-orange-600 font-bold flex items-center gap-1">Dettagli e chat <MessageCircle className="w-3 h-3"/></span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1 mt-2">
-                  <div className="h-1 rounded-full bg-orange-400"
-                    style={{ width:`${Math.min((count/ev.max_participants)*100,100)}%` }} />
+                  <div className="h-1 rounded-full bg-orange-400" style={{width:`${Math.min((count/ev.max_participants)*100,100)}%`}} />
                 </div>
               </div>
             </button>
