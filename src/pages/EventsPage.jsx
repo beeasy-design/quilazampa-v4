@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { Calendar, MapPin, Clock, Users, Plus, ChevronLeft, X, MessageCircle, Send, PawPrint } from 'lucide-react'
+import { Calendar, MapPin, Clock, Users, Plus, ChevronLeft, MessageCircle, Send, PawPrint } from 'lucide-react'
 
 const EVENT_COLORS = ['#FED7AA', '#DDD6FE', '#BFDBFE', '#BBF7D0', '#FCE7F3', '#FEF3C7']
 
@@ -12,58 +12,51 @@ function EventDetail({ event, onBack }) {
   const [text, setText] = useState('')
   const [tab, setTab] = useState('info')
   const [isJoined, setIsJoined] = useState(false)
-  const [participantCount, setParticipantCount] = useState(event.participants_count || 0)
+  const [count, setCount] = useState(event.participants_count || 0)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
-  const inputRef = useRef(null)
 
   useEffect(() => {
     fetchParticipants()
-    checkJoined()
   }, [event.id])
 
   useEffect(() => {
-    if (tab === 'chat') {
-      fetchMessages()
-      const ch = supabase.channel(`event-chat-${event.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'event_messages',
-          filter: `event_id=eq.${event.id}`
-        }, async (payload) => {
-          // Carica il messaggio completo con profilo
-          const { data } = await supabase.from('event_messages')
-            .select('*, profiles(username)')
-            .eq('id', payload.new.id)
-            .single()
-          if (data) setMessages(prev => [...prev, data])
-        })
-        .subscribe()
-      return () => supabase.removeChannel(ch)
-    }
+    if (tab !== 'chat') return
+    fetchMessages()
+    const ch = supabase.channel(`ev-chat-${event.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'event_messages',
+        filter: `event_id=eq.${event.id}`
+      }, async (payload) => {
+        const { data } = await supabase
+          .from('event_messages')
+          .select('id, content, user_id, created_at, profiles(username)')
+          .eq('id', payload.new.id)
+          .single()
+        if (data) setMessages(prev => [...prev, data])
+      })
+      .subscribe()
+    return () => supabase.removeChannel(ch)
   }, [event.id, tab])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const checkJoined = async () => {
-    if (!user) return
-    const { data } = await supabase.from('event_participants')
-      .select('id').eq('event_id', event.id).eq('user_id', user.id).single()
-    setIsJoined(!!data)
-  }
-
   const fetchParticipants = async () => {
-    const { data } = await supabase.from('event_participants')
-      .select('user_id, profiles(username, city), joined_at')
+    const { data } = await supabase
+      .from('event_participants')
+      .select('user_id, profiles(username, city)')
       .eq('event_id', event.id)
     setParticipants(data || [])
-    setParticipantCount(data?.length || 0)
+    setCount(data?.length || 0)
+    setIsJoined(!!(data || []).find(p => p.user_id === user?.id))
   }
 
   const fetchMessages = async () => {
-    const { data } = await supabase.from('event_messages')
-      .select('*, profiles(username)')
+    const { data } = await supabase
+      .from('event_messages')
+      .select('id, content, user_id, created_at, profiles(username)')
       .eq('event_id', event.id)
       .order('created_at')
     setMessages(data || [])
@@ -72,23 +65,33 @@ function EventDetail({ event, onBack }) {
   const handleJoin = async () => {
     if (!user) return
     if (isJoined) {
-      await supabase.from('event_participants')
-        .delete().eq('event_id', event.id).eq('user_id', user.id)
-      setIsJoined(false)
-      setParticipantCount(prev => Math.max(0, prev - 1))
+      const { error } = await supabase
+        .from('event_participants')
+        .delete()
+        .eq('event_id', event.id)
+        .eq('user_id', user.id)
+      if (!error) {
+        setIsJoined(false)
+        setCount(c => Math.max(0, c - 1))
+        // Aggiorna counter nel DB
+        await supabase.from('events').update({ participants_count: Math.max(0, count - 1) }).eq('id', event.id)
+      }
     } else {
-      const { error } = await supabase.from('event_participants')
+      const { error } = await supabase
+        .from('event_participants')
         .insert({ event_id: event.id, user_id: user.id })
       if (!error) {
         setIsJoined(true)
-        setParticipantCount(prev => prev + 1)
+        setCount(c => c + 1)
+        // Aggiorna counter nel DB
+        await supabase.from('events').update({ participants_count: count + 1 }).eq('id', event.id)
       }
     }
     fetchParticipants()
   }
 
   const sendMsg = async () => {
-    if (!text.trim() || sending) return
+    if (!text.trim() || sending || !user) return
     setSending(true)
     const content = text.trim()
     setText('')
@@ -97,12 +100,15 @@ function EventDetail({ event, onBack }) {
       user_id: user.id,
       content
     })
-    if (error) console.error('Errore invio:', error)
+    if (error) {
+      console.error('Errore chat:', error.message)
+      setText(content) // ripristina se errore
+    }
     setSending(false)
   }
 
   const isPast = new Date(event.date) < new Date()
-  const isFull = participantCount >= event.max_participants
+  const isFull = count >= event.max_participants
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -111,7 +117,6 @@ function EventDetail({ event, onBack }) {
         <h2 className="font-bold text-gray-900 flex-1 text-sm truncate">{event.title}</h2>
       </div>
 
-      {/* Hero */}
       <div className="px-4 py-4 flex-shrink-0" style={{ background: EVENT_COLORS[0] }}>
         <div className="flex items-start gap-3">
           <div className="text-4xl">{event.emoji || '🐾'}</div>
@@ -124,15 +129,14 @@ function EventDetail({ event, onBack }) {
               </span>
               <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{event.location}</span>
               <span className="flex items-center gap-1 font-bold">
-                <Users className="w-3 h-3" />
-                {participantCount}/{event.max_participants} partecipanti
+                <Users className="w-3 h-3" />{count}/{event.max_participants} partecipanti
               </span>
             </div>
           </div>
         </div>
         <div className="w-full bg-white/50 rounded-full h-1.5 mt-3">
           <div className="h-1.5 rounded-full bg-orange-500 transition-all"
-            style={{ width: `${Math.min((participantCount / event.max_participants) * 100, 100)}%` }} />
+            style={{ width: `${Math.min((count / event.max_participants) * 100, 100)}%` }} />
         </div>
         {!isPast && (
           <button onClick={handleJoin}
@@ -144,11 +148,10 @@ function EventDetail({ event, onBack }) {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="bg-white flex border-b border-gray-200 flex-shrink-0">
         {[
           { id: 'info', label: 'Info' },
-          { id: 'partecipanti', label: `Partecipanti (${participantCount})` },
+          { id: 'partecipanti', label: `Partecipanti (${count})` },
           { id: 'chat', label: '💬 Chat' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -176,7 +179,7 @@ function EventDetail({ event, onBack }) {
               </div>
               <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" />{event.location}</div>
               <div className="flex items-center gap-2"><Users className="w-4 h-4 text-orange-500" />
-                {participantCount} partecipanti su {event.max_participants} posti
+                {count} partecipanti su {event.max_participants} posti
               </div>
             </div>
           </div>
@@ -224,6 +227,9 @@ function EventDetail({ event, onBack }) {
                     <div className={`max-w-[78%] px-3 py-2 rounded-2xl shadow-sm ${isMe ? 'rounded-br-sm text-white' : 'bg-white text-gray-800 rounded-bl-sm'}`}
                       style={isMe ? { background: 'linear-gradient(135deg,#F97316,#EA580C)' } : {}}>
                       <p className="text-sm">{m.content}</p>
+                      <p className={`text-[9px] mt-0.5 ${isMe ? 'text-orange-100 text-right' : 'text-gray-400'}`}>
+                        {new Date(m.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
                   </div>
                 )
@@ -233,7 +239,6 @@ function EventDetail({ event, onBack }) {
             <div className="bg-white px-3 py-2 border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
               <div className="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-2.5">
                 <input
-                  ref={inputRef}
                   type="text"
                   value={text}
                   onChange={e => setText(e.target.value)}
@@ -245,7 +250,7 @@ function EventDetail({ event, onBack }) {
               <button
                 onClick={sendMsg}
                 disabled={!text.trim() || sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
+                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg,#F97316,#EA580C)' }}>
                 <Send className="w-4 h-4 text-white" />
               </button>
@@ -258,7 +263,7 @@ function EventDetail({ event, onBack }) {
 }
 
 export default function EventsPage({ initialEvent = null }) {
-  const { user, isAdmin } = useAuth()
+  const { user } = useAuth()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -333,8 +338,7 @@ export default function EventsPage({ initialEvent = null }) {
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1.5">Descrizione</label>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Descrivi l'evento..." rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none resize-none" />
+              rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -355,7 +359,7 @@ export default function EventsPage({ initialEvent = null }) {
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
           </div>
           <button type="submit"
-            className="w-full text-white font-bold py-4 rounded-xl shadow-md"
+            className="w-full text-white font-bold py-4 rounded-xl"
             style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
             🎉 Pubblica evento
           </button>
@@ -415,7 +419,7 @@ export default function EventsPage({ initialEvent = null }) {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-                    <Users className="w-3 h-3" />{ev.participants_count || 0}/{ev.max_participants} partecipanti
+                    <Users className="w-3 h-3" />{ev.participants_count || 0}/{ev.max_participants}
                   </span>
                   <span className="text-xs text-orange-600 font-bold flex items-center gap-1">
                     Dettagli e chat <MessageCircle className="w-3 h-3" />
