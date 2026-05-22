@@ -1,14 +1,237 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { PawPrint, Shield, ChevronRight, Bell, Settings, Edit3, Plus, LogOut, Crown } from 'lucide-react'
+import { PawPrint, Shield, ChevronRight, Bell, Settings, Edit3, Plus, LogOut, Crown, X, Check, Heart, MessageCircle } from 'lucide-react'
 
 const TRAITS = ['Socievole', 'Energico', 'Tranquillo', 'Giocoso', 'Timido', 'Protettivo', 'Curioso', 'Indipendente']
 
-export default function ProfilePage({ onAddDog, onAdminPanel }) {
+function NotificationsSettings({ onClose }) {
+  const [settings, setSettings] = useState({
+    newDogInArea: true, eventNearby: true, friendRequest: true, checkinAlert: false
+  })
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white px-4 pt-3 pb-3 flex items-center gap-3 border-b border-gray-100">
+        <button onClick={onClose}><X className="w-6 h-6 text-gray-700" /></button>
+        <h2 className="font-bold text-gray-900">Notifiche</h2>
+      </div>
+      <div className="p-4 space-y-2">
+        {[
+          { key: 'newDogInArea', label: 'Nuovo cane in area preferita', sub: 'Avvisami quando un cane arriva' },
+          { key: 'eventNearby', label: 'Evento vicino a te', sub: 'Raduni e passeggiate nella zona' },
+          { key: 'friendRequest', label: 'Richiesta di amicizia', sub: 'Quando un cane ti invia richiesta' },
+          { key: 'checkinAlert', label: 'Check-in automatico', sub: 'Suggerisci check-in quando sei in area' },
+        ].map(item => (
+          <div key={item.key} className="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <p className="font-semibold text-sm text-gray-900">{item.label}</p>
+              <p className="text-xs text-gray-500">{item.sub}</p>
+            </div>
+            <button onClick={() => setSettings(s => ({ ...s, [item.key]: !s[item.key] }))}
+              className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${settings[item.key] ? 'bg-green-500' : 'bg-gray-300'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${settings[item.key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PrivacySettings({ onClose }) {
+  const [settings, setSettings] = useState({ invisibleMode: false, showLocation: true, publicProfile: true })
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white px-4 pt-3 pb-3 flex items-center gap-3 border-b border-gray-100">
+        <button onClick={onClose}><X className="w-6 h-6 text-gray-700" /></button>
+        <h2 className="font-bold text-gray-900">Privacy</h2>
+      </div>
+      <div className="p-4 space-y-2">
+        {[
+          { key: 'invisibleMode', label: 'Modalità invisibile globale', sub: 'Non apparire nelle aree cani' },
+          { key: 'showLocation', label: 'Mostra posizione', sub: 'Condividi posizione durante check-in' },
+          { key: 'publicProfile', label: 'Profilo pubblico', sub: 'Gli altri possono vedere il tuo cane' },
+        ].map(item => (
+          <div key={item.key} className="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <p className="font-semibold text-sm text-gray-900">{item.label}</p>
+              <p className="text-xs text-gray-500">{item.sub}</p>
+            </div>
+            <button onClick={() => setSettings(s => ({ ...s, [item.key]: !s[item.key] }))}
+              className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${settings[item.key] ? 'bg-green-500' : 'bg-gray-300'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${settings[item.key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AccountSettings({ onClose, profile, user }) {
+  const [username, setUsername] = useState(profile?.username || '')
+  const [city, setCity] = useState(profile?.city || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    await supabase.from('profiles').update({ username, city }).eq('id', user.id)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white px-4 pt-3 pb-3 flex items-center gap-3 border-b border-gray-100">
+        <button onClick={onClose}><X className="w-6 h-6 text-gray-700" /></button>
+        <h2 className="font-bold text-gray-900">Impostazioni account</h2>
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+          <div>
+            <label className="text-xs font-bold text-gray-700 block mb-1.5">Username</label>
+            <input value={username} onChange={e => setUsername(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-700 block mb-1.5">Città</label>
+            <input value={city} onChange={e => setCity(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-orange-400 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-700 block mb-1.5">Email</label>
+            <input value={user?.email || ''} disabled
+              className="w-full px-4 py-3 rounded-xl border border-gray-100 text-sm bg-gray-50 text-gray-500" />
+          </div>
+          <button onClick={save} disabled={saving}
+            className="w-full text-white font-bold py-3 rounded-xl disabled:opacity-60 flex items-center justify-center gap-2"
+            style={{ background: saved ? 'linear-gradient(135deg,#10B981,#059669)' : 'linear-gradient(135deg,#F97316,#EA580C)' }}>
+            {saved ? <><Check className="w-4 h-4" /> Salvato!</> : saving ? '...' : 'Salva modifiche'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FriendsPage({ dogs, onClose, onChat }) {
+  const { user } = useAuth()
+  const [friendships, setFriendships] = useState([])
+  const [pending, setPending] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { fetchFriendships() }, [])
+
+  const fetchFriendships = async () => {
+    if (!dogs.length) { setLoading(false); return }
+    const dogIds = dogs.map(d => d.id)
+    const { data } = await supabase.from('dog_friendships')
+      .select(`
+        id, status, created_by,
+        dog1:dog_id_1(id, name, breed, age, owner_id, profiles(username)),
+        dog2:dog_id_2(id, name, breed, age, owner_id, profiles(username))
+      `)
+      .or(`dog_id_1.in.(${dogIds.join(',')}),dog_id_2.in.(${dogIds.join(',')})`)
+
+    const accepted = (data || []).filter(f => f.status === 'accepted')
+    const pend = (data || []).filter(f => f.status === 'pending')
+    setFriendships(accepted)
+    setPending(pend)
+    setLoading(false)
+  }
+
+  const acceptFriend = async (id) => {
+    await supabase.from('dog_friendships').update({ status: 'accepted' }).eq('id', id)
+    fetchFriendships()
+  }
+
+  const rejectFriend = async (id) => {
+    await supabase.from('dog_friendships').delete().eq('id', id)
+    fetchFriendships()
+  }
+
+  const getFriendDog = (friendship) => {
+    const myDogIds = dogs.map(d => d.id)
+    if (myDogIds.includes(friendship.dog1?.id)) return friendship.dog2
+    return friendship.dog1
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white px-4 pt-3 pb-3 flex items-center gap-3 border-b border-gray-100">
+        <button onClick={onClose}><X className="w-6 h-6 text-gray-700" /></button>
+        <h2 className="font-bold text-gray-900">Amici cani</h2>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Richieste in sospeso */}
+        {pending.length > 0 && (
+          <div>
+            <h3 className="font-bold text-sm text-gray-900 mb-2">Richieste ricevute ({pending.length})</h3>
+            {pending.filter(f => f.created_by !== user?.id).map(f => {
+              const friendDog = getFriendDog(f)
+              return (
+                <div key={f.id} className="bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm mb-2">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl">🐕</div>
+                  <div className="flex-1">
+                    <p className="font-bold text-sm text-gray-900">{friendDog?.name}</p>
+                    <p className="text-xs text-gray-500">{friendDog?.profiles?.username}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => acceptFriend(f.id)}
+                      className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                      <Check className="w-4 h-4 text-green-600" />
+                    </button>
+                    <button onClick={() => rejectFriend(f.id)}
+                      className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                      <X className="w-4 h-4 text-red-500" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Amici */}
+        <div>
+          <h3 className="font-bold text-sm text-gray-900 mb-2">I tuoi amici cani ({friendships.length})</h3>
+          {loading && <p className="text-sm text-gray-500 text-center py-4">Caricamento...</p>}
+          {!loading && friendships.length === 0 && (
+            <div className="text-center py-8 bg-white rounded-2xl">
+              <div className="text-4xl mb-2">🐾</div>
+              <p className="text-sm text-gray-600">Nessun amico ancora</p>
+              <p className="text-xs text-gray-400 mt-1">Vai in un parco e aggiungi i cani che incontri!</p>
+            </div>
+          )}
+          {friendships.map(f => {
+            const friendDog = getFriendDog(f)
+            return (
+              <div key={f.id} className="bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm mb-2">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl">🐕</div>
+                <div className="flex-1">
+                  <p className="font-bold text-sm text-gray-900">{friendDog?.name}</p>
+                  <p className="text-xs text-gray-500">{friendDog?.breed} • {friendDog?.profiles?.username}</p>
+                </div>
+                <button onClick={() => onChat(friendDog?.owner_id)}
+                  className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center">
+                  <MessageCircle className="w-4 h-4 text-blue-500" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ProfilePage({ onAddDog, onAdminPanel, onChat }) {
   const { user, profile, dogs, isAdmin, signOut, refreshDogs } = useAuth()
   const [editingDog, setEditingDog] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [subPage, setSubPage] = useState(null) // null | 'notifications' | 'privacy' | 'settings' | 'friends'
 
   const updateDog = async (id, updates) => {
     setSaving(true)
@@ -23,6 +246,11 @@ export default function ProfilePage({ onAddDog, onAdminPanel }) {
     await supabase.from('dogs').delete().eq('id', id)
     refreshDogs()
   }
+
+  if (subPage === 'notifications') return <NotificationsSettings onClose={() => setSubPage(null)} />
+  if (subPage === 'privacy') return <PrivacySettings onClose={() => setSubPage(null)} />
+  if (subPage === 'settings') return <AccountSettings onClose={() => setSubPage(null)} profile={profile} user={user} />
+  if (subPage === 'friends') return <FriendsPage dogs={dogs} onClose={() => setSubPage(null)} onChat={(id) => { setSubPage(null); onChat && onChat(id) }} />
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -42,15 +270,18 @@ export default function ProfilePage({ onAddDog, onAdminPanel }) {
               <div className="flex items-center gap-2">
                 <h2 className="font-bold text-lg">{profile?.username || user?.email?.split('@')[0]}</h2>
                 {isAdmin && <Crown className="w-4 h-4 text-yellow-300" fill="#fde68a" />}
-                <Shield className="w-4 h-4 text-blue-200" />
               </div>
               <p className="text-xs text-blue-100">{profile?.city || 'Città non impostata'}</p>
               <p className="text-xs text-blue-200">{user?.email}</p>
             </div>
+            <button onClick={() => setSubPage('settings')}
+              className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
+              <Edit3 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Admin panel button */}
+        {/* Admin panel */}
         {isAdmin && (
           <div className="px-4 mt-3">
             <button onClick={onAdminPanel}
@@ -109,18 +340,23 @@ export default function ProfilePage({ onAddDog, onAdminPanel }) {
           )}
         </div>
 
-        {/* Menu */}
+        {/* Menu impostazioni */}
         <div className="px-4 mt-4 mb-4">
           <div className="bg-white rounded-2xl divide-y divide-gray-100">
             {[
-              { icon: Bell, label: 'Notifiche', sub: 'Personalizza avvisi' },
-              { icon: Shield, label: 'Privacy', sub: 'Modalità invisibile, dati' },
-              { icon: Settings, label: 'Impostazioni', sub: 'Account, lingua' },
+              { icon: Heart, label: 'Amici cani', sub: `${dogs.length > 0 ? 'Gestisci amicizie' : 'Aggiungi un cane prima'}`, action: 'friends', color: '#EF4444' },
+              { icon: Bell, label: 'Notifiche', sub: 'Personalizza avvisi', action: 'notifications', color: '#F97316' },
+              { icon: Shield, label: 'Privacy', sub: 'Modalità invisibile, dati', action: 'privacy', color: '#3B82F6' },
+              { icon: Settings, label: 'Impostazioni', sub: 'Account, username, città', action: 'settings', color: '#8B5CF6' },
             ].map((item, i) => {
               const Icon = item.icon
               return (
-                <button key={i} className="w-full flex items-center gap-3 p-3 text-left">
-                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center"><Icon className="w-4 h-4 text-orange-500" /></div>
+                <button key={i} onClick={() => setSubPage(item.action)}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50 active:bg-gray-100">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: item.color + '15' }}>
+                    <Icon className="w-4 h-4" style={{ color: item.color }} />
+                  </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-900">{item.label}</p>
                     <p className="text-[10px] text-gray-500">{item.sub}</p>
@@ -129,8 +365,10 @@ export default function ProfilePage({ onAddDog, onAdminPanel }) {
                 </button>
               )
             })}
-            <button onClick={signOut} className="w-full flex items-center gap-3 p-3">
-              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center"><LogOut className="w-4 h-4 text-red-500" /></div>
+            <button onClick={signOut} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center">
+                <LogOut className="w-4 h-4 text-red-500" />
+              </div>
               <p className="text-sm font-semibold text-red-600">Esci dall'account</p>
             </button>
           </div>
@@ -148,11 +386,13 @@ function DogEditForm({ dog, onSave, onCancel, saving }) {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] font-bold text-gray-600 block mb-1">Nome</label>
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
         </div>
         <div>
           <label className="text-[10px] font-bold text-gray-600 block mb-1">Razza</label>
-          <input value={form.breed} onChange={e => setForm(f => ({ ...f, breed: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
+          <input value={form.breed} onChange={e => setForm(f => ({ ...f, breed: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
         </div>
       </div>
       <div>
