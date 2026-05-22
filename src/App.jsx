@@ -15,7 +15,7 @@ import { Home, Map, PawPrint, Calendar, User, MessageCircle } from 'lucide-react
 function AppContent() {
   const { user, dogs, loading } = useAuth()
   const [tab, setTab] = useState('home')
-  const [screen, setScreen] = useState('main') // main | area | onboarding | admin | event
+  const [screen, setScreen] = useState('main')
   const [selectedArea, setSelectedArea] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [chatReceiver, setChatReceiver] = useState(null)
@@ -34,7 +34,6 @@ function AppContent() {
 
   if (!user) return <AuthPage />
 
-  // Mostra onboarding se nessun cane e non stiamo già nell'onboarding
   if (dogs.length === 0 && screen !== 'onboarding') {
     return (
       <div className="min-h-screen flex items-start justify-center"
@@ -50,11 +49,16 @@ function AppContent() {
 
   const handleAreaSelect = (area) => { setSelectedArea(area); setScreen('area') }
   const handleEventSelect = (event) => { setSelectedEvent(event); setTab('events'); setScreen('main') }
-  const handleChat = (receiverId) => { setChatReceiver(receiverId); setTab('chat'); setScreen('main') }
+  const handleChat = (receiverId) => {
+    setChatReceiver(receiverId)
+    setTab('chat')
+    setScreen('main')
+    setSelectedArea(null)
+  }
   const handleTabChange = (t) => { setTab(t); setScreen('main'); setSelectedArea(null) }
 
   const renderMain = () => {
-    if (screen === 'onboarding') return <OnboardingPage onComplete={() => { setScreen('main') }} />
+    if (screen === 'onboarding') return <OnboardingPage onComplete={() => setScreen('main')} />
     if (screen === 'area' && selectedArea) return <AreaPage area={selectedArea} onBack={goMain} onChat={handleChat} />
     if (screen === 'admin') return <AdminPanel onBack={goMain} />
 
@@ -64,7 +68,13 @@ function AppContent() {
       case 'events': return <EventsPage initialEvent={selectedEvent} />
       case 'adoptions': return <AdoptionsPage />
       case 'chat': return <ChatPage initialReceiverId={chatReceiver} />
-      case 'profile': return <ProfilePage onAddDog={() => setScreen('onboarding')} onAdminPanel={() => setScreen('admin')} />
+      case 'profile': return (
+        <ProfilePage
+          onAddDog={() => setScreen('onboarding')}
+          onAdminPanel={() => setScreen('admin')}
+          onChat={handleChat}
+        />
+      )
       default: return <HomePage onAreaSelect={handleAreaSelect} onTabChange={handleTabChange} onEventSelect={handleEventSelect} />
     }
   }
@@ -84,8 +94,6 @@ function AppContent() {
       style={{ background: 'linear-gradient(135deg, #FEF3C7, #FED7AA)' }}>
       <div className="w-full bg-white shadow-2xl overflow-hidden flex flex-col"
         style={{ maxWidth: '430px', minHeight: '100svh' }}>
-
-        {/* Status bar desktop */}
         <div className="hidden sm:flex bg-white px-6 py-2 items-center justify-between text-xs font-semibold border-b border-gray-50 flex-shrink-0">
           <span>9:41</span>
           <div className="flex items-center gap-1">
@@ -97,11 +105,7 @@ function AppContent() {
             </div>
           </div>
         </div>
-
-        {/* Screen */}
         <div className="flex-1 overflow-hidden flex flex-col">{renderMain()}</div>
-
-        {/* Bottom nav */}
         {showNav && (
           <div className="bg-white border-t border-gray-200 flex justify-around items-center py-2 flex-shrink-0"
             style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
