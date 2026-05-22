@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { ChevronLeft, PawPrint, Star, Eye, EyeOff, MessageCircle, Info, X, ChevronRight } from 'lucide-react'
+import { ChevronLeft, PawPrint, Star, MessageCircle, Info, X, ChevronRight } from 'lucide-react'
 
 function calcCompat(a, b) {
   if (!a || !b) return 50
@@ -20,50 +20,32 @@ const EMOJIS = ['🐕', '🐶', '🦮', '🐕‍🦺', '🐩', '🦴']
 function DogProfileModal({ dog, compat, onClose, onChat }) {
   const compatColor = compat >= 75 ? '#10B981' : compat >= 60 ? '#F97316' : '#EF4444'
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div className="bg-white w-full max-w-sm rounded-t-3xl p-6" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center' }}>
+      <div className="bg-white w-full max-w-sm rounded-t-3xl p-6" style={{ maxHeight:'80vh',overflowY:'auto' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-black text-xl text-gray-900">Profilo cane</h2>
-          <button onClick={onClose} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-            <X className="w-4 h-4 text-gray-600" />
-          </button>
+          <button onClick={onClose} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X className="w-4 h-4" /></button>
         </div>
         <div className="text-center mb-4">
-          <div className="w-24 h-24 rounded-full bg-amber-100 flex items-center justify-center text-5xl mx-auto mb-3">🐕</div>
-          <h3 className="font-black text-2xl text-gray-900">{dog.name}</h3>
-          <p className="text-gray-600">{dog.breed} • {dog.age ? dog.age + ' anni' : ''} • {dog.gender === 'M' ? '♂' : '♀'}</p>
+          <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center text-4xl mx-auto mb-2">🐕</div>
+          <h3 className="font-black text-xl text-gray-900">{dog.name}</h3>
+          <p className="text-gray-600 text-sm">{dog.breed} {dog.age ? '• ' + dog.age + ' anni' : ''} • {dog.gender === 'M' ? '♂' : '♀'}</p>
         </div>
         <div className="bg-gray-50 rounded-2xl p-4 mb-4 text-center">
-          <div className="text-4xl font-black mb-1" style={{ color: compatColor }}>{compat}%</div>
-          <p className="text-sm text-gray-600 font-medium">Compatibilità con il tuo cane</p>
+          <div className="text-3xl font-black mb-1" style={{ color: compatColor }}>{compat}%</div>
+          <p className="text-sm text-gray-600">Compatibilità</p>
           <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-            <div className="h-2 rounded-full" style={{ width: `${compat}%`, background: compatColor }} />
+            <div className="h-2 rounded-full" style={{ width:`${compat}%`, background:compatColor }} />
           </div>
         </div>
-        <div className="mb-4">
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {[
-              { label: 'Taglia', value: dog.size || 'N/D' },
-              { label: 'Energia', value: dog.energy || 'N/D' },
-              { label: 'Sesso', value: dog.gender === 'M' ? '♂ Maschio' : '♀ Femmina' },
-            ].map((item, i) => (
-              <div key={i} className="bg-gray-50 rounded-xl p-2 text-center">
-                <div className="text-[10px] text-gray-500 mb-0.5">{item.label}</div>
-                <div className="text-xs font-bold text-gray-900">{item.value}</div>
-              </div>
-            ))}
-          </div>
-          {(dog.traits || []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {dog.traits.map((t, i) => (
-                <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">{t}</span>
-              ))}
-            </div>
-          )}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {(dog.traits||[]).map((t,i) => (
+            <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">{t}</span>
+          ))}
         </div>
         <button onClick={() => onChat(dog.owner_id)}
           className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}>
+          style={{ background:'linear-gradient(135deg,#3B82F6,#2563EB)' }}>
           <MessageCircle className="w-5 h-5" /> Scrivi al proprietario
         </button>
       </div>
@@ -73,26 +55,22 @@ function DogProfileModal({ dog, compat, onClose, onChat }) {
 
 function SelectDogModal({ dogs, onSelect, onClose }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center' }}>
       <div className="bg-white w-full max-w-sm rounded-t-3xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-black text-lg text-gray-900">Con quale cane sei qui?</h2>
-          <button onClick={onClose} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-            <X className="w-4 h-4 text-gray-600" />
-          </button>
+          <button onClick={onClose} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X className="w-4 h-4" /></button>
         </div>
         <div className="space-y-2">
           {dogs.map((dog, i) => (
             <button key={dog.id} onClick={() => onSelect(dog)}
               className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-2xl hover:bg-orange-50 active:scale-95 text-left">
-              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl">
-                {EMOJIS[i % EMOJIS.length]}
-              </div>
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl">{EMOJIS[i%EMOJIS.length]}</div>
               <div className="flex-1">
                 <p className="font-bold text-gray-900">{dog.name}</p>
-                <p className="text-xs text-gray-500">{dog.breed} • {dog.age ? dog.age + ' anni' : ''}</p>
+                <p className="text-xs text-gray-500">{dog.breed}</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400" />
             </button>
           ))}
         </div>
@@ -105,127 +83,80 @@ export default function AreaPage({ area, onBack, onChat }) {
   const { user, dogs } = useAuth()
   const [activeDog, setActiveDog] = useState(dogs[0] || null)
   const [present, setPresent] = useState([])
-  const [checkinId, setCheckinId] = useState(null)
-  const [invisible, setInvisible] = useState(false)
+  const [checkins, setCheckins] = useState([]) // checkin attivi dei miei cani in quest'area
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [selectedDog, setSelectedDog] = useState(null)
   const [showDogSelect, setShowDogSelect] = useState(false)
-  const [geoPrompt, setGeoPrompt] = useState(null)
-  const watchIdRef = useRef(null)
-
-  // IDs di tutti i cani dell'utente corrente
-  const myDogIds = dogs.map(d => d.id)
-  const myOwnerIds = dogs.map(d => d.owner_id || user?.id)
 
   useEffect(() => {
-    fetchPresent()
-    checkMyCheckin()
-    startGeoWatch()
+    fetchAll()
     const ch = supabase.channel(`area-${area.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins', filter: `area_id=eq.${area.id}` }, fetchPresent)
+      .on('postgres_changes', { event:'*', schema:'public', table:'checkins', filter:`area_id=eq.${area.id}` }, fetchAll)
       .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-      if (watchIdRef.current) navigator.geolocation?.clearWatch(watchIdRef.current)
-    }
+    return () => supabase.removeChannel(ch)
   }, [area.id])
 
-  useEffect(() => {
-    if (dogs.length > 0 && !activeDog) setActiveDog(dogs[0])
-  }, [dogs])
-
-  const startGeoWatch = () => {
-    if (!navigator.geolocation || !area.lat || !area.lng) return
-    watchIdRef.current = navigator.geolocation.watchPosition(pos => {
-      const { latitude: lat, longitude: lng } = pos.coords
-      const dist = Math.sqrt(
-        Math.pow((lat - area.lat) * 111000, 2) +
-        Math.pow((lng - area.lng) * 111000 * Math.cos(area.lat * Math.PI / 180), 2)
-      )
-      if (dist < 200 && !checkinId) setGeoPrompt('check-in')
-      if (dist > 500 && checkinId) setGeoPrompt('checkout')
-    }, null, { enableHighAccuracy: true, maximumAge: 30000 })
-  }
-
-  const fetchPresent = async () => {
-    const { data } = await supabase.from('checkins')
+  const fetchAll = async () => {
+    // Carica TUTTI i cani presenti nell'area
+    const { data } = await supabase
+      .from('checkins')
       .select('id, dog_id, checked_in_at, dogs(id, name, breed, age, gender, size, energy, traits, owner_id)')
       .eq('area_id', area.id)
       .eq('active', true)
     setPresent(data || [])
+
+    // Trova i miei check-in attivi in quest'area
+    if (dogs.length > 0) {
+      const myDogIds = dogs.map(d => d.id)
+      const mine = (data || []).filter(c => myDogIds.includes(c.dog_id))
+      setCheckins(mine)
+    }
     setLoading(false)
   }
 
-  const checkMyCheckin = async () => {
-    if (dogs.length === 0) return
-    const { data } = await supabase.from('checkins').select('id, dog_id')
-      .in('dog_id', dogs.map(d => d.id))
-      .eq('area_id', area.id)
-      .eq('active', true)
-    if (data && data.length > 0) {
-      setCheckinId(data[0].id)
-      const checkedDog = dogs.find(d => d.id === data[0].dog_id)
-      if (checkedDog) setActiveDog(checkedDog)
-    }
-  }
+  const isMyDog = (dogId) => dogs.some(d => d.id === dogId)
 
   const handleCheckinPress = () => {
-    if (checkinId) {
-      handleCheckin(activeDog)
-    } else if (dogs.length > 1) {
-      setShowDogSelect(true)
-    } else {
+    if (dogs.length === 0) return
+    if (dogs.length === 1) {
       handleCheckin(dogs[0])
+    } else {
+      setShowDogSelect(true)
     }
   }
 
   const handleCheckin = async (dog) => {
     if (!dog) return
     setBusy(true)
-    setGeoPrompt(null)
     setShowDogSelect(false)
     setActiveDog(dog)
-    if (checkinId) {
-      await supabase.from('checkins').update({ active: false, checked_out_at: new Date().toISOString() }).eq('id', checkinId)
-      setCheckinId(null)
+
+    // Controlla se questo cane e' gia' in check-in in quest'area
+    const existing = checkins.find(c => c.dog_id === dog.id)
+    if (existing) {
+      // Checkout
+      await supabase.from('checkins')
+        .update({ active: false, checked_out_at: new Date().toISOString() })
+        .eq('id', existing.id)
     } else {
-      await supabase.from('checkins').update({ active: false, checked_out_at: new Date().toISOString() })
-        .eq('dog_id', dog.id).eq('active', true)
-      const { data } = await supabase.from('checkins')
+      // Check-in (NON fa checkout da altre aree - cosi' piu' cani possono essere in aree diverse)
+      await supabase.from('checkins')
         .insert({ dog_id: dog.id, area_id: area.id, active: true })
-        .select().single()
-      if (data) setCheckinId(data.id)
     }
-    await fetchPresent()
+    await fetchAll()
     setBusy(false)
   }
 
   const elapsed = (ts) => {
     const m = Math.floor((Date.now() - new Date(ts)) / 60000)
-    return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`
+    return m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`
   }
 
-  // FIX: in modalità invisibile nascondi solo i TUOI cani, non tutti
-  const visibleDogs = invisible
-    ? present.filter(c => !myDogIds.includes(c.dog_id))
-    : present
+  const myDogInArea = dogs.find(d => checkins.some(c => c.dog_id === d.id))
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {geoPrompt && (
-        <div className="bg-blue-500 text-white px-4 py-2.5 flex items-center gap-3 flex-shrink-0">
-          <PawPrint className="w-4 h-4 flex-shrink-0" fill="white" />
-          <p className="text-xs font-medium flex-1">
-            {geoPrompt === 'check-in' ? `Sei vicino a ${area.name}! Vuoi fare check-in?` : `Ti sei allontanato. Check-out?`}
-          </p>
-          <button onClick={handleCheckinPress} className="bg-white text-blue-600 text-xs font-bold px-3 py-1 rounded-full flex-shrink-0">
-            {geoPrompt === 'check-in' ? 'Check-in' : 'Check-out'}
-          </button>
-          <button onClick={() => setGeoPrompt(null)}><X className="w-4 h-4" /></button>
-        </div>
-      )}
-
       <div className="bg-white px-4 pt-3 pb-3 flex items-center justify-between border-b border-gray-100">
         <button onClick={onBack}><ChevronLeft className="w-6 h-6 text-gray-700" /></button>
         <div className="text-center flex-1 mx-2">
@@ -245,41 +176,20 @@ export default function AreaPage({ area, onBack, onChat }) {
         <button className="flex-1 py-3 text-sm font-medium text-gray-500">ATTIVITÀ</button>
       </div>
 
-      <div className="bg-amber-50 px-4 py-2 flex items-center justify-between border-b border-amber-100">
-        <div className="flex items-center gap-2 text-xs text-amber-900">
-          {invisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          <span>Modalità invisibile</span>
-          {invisible && <span className="text-[10px] bg-amber-200 px-1.5 py-0.5 rounded-full">Tu non sei visibile agli altri</span>}
-        </div>
-        <button onClick={() => setInvisible(!invisible)}
-          className={`w-10 h-5 rounded-full relative transition-colors ${invisible ? 'bg-green-500' : 'bg-gray-300'}`}>
-          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${invisible ? 'translate-x-5' : 'translate-x-0.5'}`} />
-        </button>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-        {loading && <div className="text-center py-8 text-gray-500">Caricamento...</div>}
-        {!loading && visibleDogs.length === 0 && !invisible && (
+        {loading && <div className="text-center py-8 text-gray-500 text-sm">Caricamento...</div>}
+        {!loading && present.length === 0 && (
           <div className="text-center py-12">
             <div className="text-5xl mb-3">🐾</div>
             <p className="font-semibold text-gray-700">Nessun cane presente</p>
             <p className="text-xs text-gray-500 mt-1">Sii il primo a fare check-in!</p>
           </div>
         )}
-        {!loading && visibleDogs.length === 0 && invisible && (
-          <div className="text-center py-12">
-            <div className="text-5xl mb-3">👻</div>
-            <p className="font-semibold text-gray-700">Modalità invisibile attiva</p>
-            <p className="text-xs text-gray-500 mt-1">Disattivala per vedere e farti vedere dagli altri</p>
-          </div>
-        )}
-        {visibleDogs.map((c, i) => {
+        {present.map((c, i) => {
           const dog = c.dogs
           if (!dog) return null
-          // FIX: isMe controlla owner_id del cane, non dog_id
-          const isMe = dog.owner_id === user?.id
-          const myFirstDog = dogs[0]
-          const compat = calcCompat(myFirstDog, dog)
+          const isMe = isMyDog(c.dog_id)
+          const compat = calcCompat(dogs[0], dog)
           const compatColor = compat >= 75 ? '#10B981' : compat >= 60 ? '#F97316' : '#EF4444'
           return (
             <div key={c.id} className={`bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm ${isMe ? 'border-2 border-orange-200' : ''}`}>
@@ -295,9 +205,9 @@ export default function AreaPage({ area, onBack, onChat }) {
                   <span className="text-xs">{dog.gender === 'M' ? '♂' : '♀'}</span>
                   {isMe && <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 rounded-full font-bold">TU</span>}
                 </div>
-                <p className="text-xs text-gray-600">{dog.breed} • {dog.age ? dog.age + 'a' : ''}</p>
+                <p className="text-xs text-gray-600">{dog.breed}{dog.age ? ' • ' + dog.age + 'a' : ''}</p>
                 <div className="flex gap-1 mt-1 flex-wrap">
-                  {(dog.traits || []).slice(0, 2).map((t, j) => (
+                  {(dog.traits||[]).slice(0,2).map((t,j) => (
                     <span key={j} className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{t}</span>
                   ))}
                 </div>
@@ -325,29 +235,34 @@ export default function AreaPage({ area, onBack, onChat }) {
 
       <div className="bg-white px-4 py-3 border-t border-gray-100 flex-shrink-0">
         {dogs.length === 0 ? (
-          <p className="text-center text-sm text-gray-600 py-1">⚠️ Aggiungi un cane dal profilo per fare check-in</p>
-        ) : (
-          <div>
-            {dogs.length > 1 && !checkinId && (
-              <button onClick={() => setShowDogSelect(true)}
-                className="w-full mb-2 flex items-center justify-between px-4 py-2 bg-orange-50 rounded-xl border border-orange-200">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🐕</span>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-gray-900">{activeDog?.name}</p>
-                    <p className="text-[10px] text-gray-500">Tocca per cambiare cane</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400 rotate-90" />
+          <p className="text-center text-sm text-gray-600">⚠️ Aggiungi un cane dal profilo per fare check-in</p>
+        ) : myDogInArea ? (
+          <div className="space-y-2">
+            <p className="text-xs text-center text-green-700 font-semibold">
+              🐾 {myDogInArea.name} è qui da {elapsed(checkins.find(c=>c.dog_id===myDogInArea.id)?.checked_in_at)}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => handleCheckin(myDogInArea)} disabled={busy}
+                className="flex-1 text-white font-bold py-3 rounded-xl active:scale-95 disabled:opacity-60"
+                style={{ background:'linear-gradient(135deg,#6B7280,#4B5563)' }}>
+                {busy ? '...' : `Esci con ${myDogInArea.name}`}
               </button>
-            )}
-            <button onClick={handleCheckinPress} disabled={busy}
-              className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 disabled:opacity-60"
-              style={{ background: checkinId ? 'linear-gradient(135deg, #6B7280, #4B5563)' : 'linear-gradient(135deg, #84CC16, #65A30D)' }}>
-              <PawPrint className="w-5 h-5" fill="white" />
-              {busy ? 'Attendere...' : checkinId ? `${activeDog?.name} è qui ✓ — Esci` : `SONO QUI con ${activeDog?.name}`}
-            </button>
+              {dogs.length > 1 && (
+                <button onClick={() => setShowDogSelect(true)}
+                  className="flex-1 text-white font-bold py-3 rounded-xl active:scale-95"
+                  style={{ background:'linear-gradient(135deg,#84CC16,#65A30D)' }}>
+                  + Altro cane
+                </button>
+              )}
+            </div>
           </div>
+        ) : (
+          <button onClick={handleCheckinPress} disabled={busy}
+            className="w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 disabled:opacity-60"
+            style={{ background:'linear-gradient(135deg,#84CC16,#65A30D)' }}>
+            <PawPrint className="w-5 h-5" fill="white" />
+            {busy ? 'Attendere...' : dogs.length > 1 ? 'SONO QUI — scegli cane' : `SONO QUI con ${dogs[0]?.name}`}
+          </button>
         )}
       </div>
 
@@ -363,7 +278,7 @@ export default function AreaPage({ area, onBack, onChat }) {
       {showDogSelect && (
         <SelectDogModal
           dogs={dogs}
-          onSelect={(dog) => handleCheckin(dog)}
+          onSelect={handleCheckin}
           onClose={() => setShowDogSelect(false)}
         />
       )}
